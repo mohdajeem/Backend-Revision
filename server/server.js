@@ -14,6 +14,23 @@ app.use(express.json());
 app.use(cookieParser());
 
 
+// 3. Role Based Access control (RBAC) with JWT
+/*
+
+    Different users have different levels of access.
+    For example:
+        Admin: Can view, edit, delete users.
+        Editor: Can view and edit content.
+        Viewer: Can only view content.
+
+    Steps: 
+        1. Update the user Data, add roles to user data
+        2. make middleware for role based (authenticateRole)
+        3. update protected routes 
+
+
+*/
+
 
 
 
@@ -32,12 +49,20 @@ const users = [
         id:1,
         username: 'john',
         password: await bcrypt.hash("password123",10),
+        role: 'admin',
     },
     {
         id:2,
         username: 'ajeem',
         password: await bcrypt.hash("pass123",10),
+        role: 'editor',
     },
+    {
+        id:3,
+        username: 'mohd',
+        password: await bcrypt.hash("password@123",10),
+        role:'viewer',
+    }
 ];
 
 // secret key for signing tokens (access Token)
@@ -96,6 +121,47 @@ app.post('api/logout', (req, res) => {
     res.status(200).json({message: 'Logged out successfully'});
 
 })
+
+// Part 3
+// made middleware for role-based access
+const authenticateRole = (roles) => (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(" ")[1];
+    
+    if(!token) return res.status(401).json({error:'Token is required'});
+
+    jwt.verify(token, SECRET_KEY, (err, user)=>{
+        if(err) return res.status(403).json({error:'Invalid Token'});
+
+        if(!roles.includes(user.role)){
+            return res.status(403).json({error: 'Access denied'});
+        }
+        req.user = user;
+        next();
+    });
+};
+
+app.get('api/admin', authenticateRole(['admin']), (req,res) => {
+    res.status(200).json({message: 'Welcome, Admin!'});
+});
+
+app.get('api/editor', authenticateRole(['admin', 'editor']), (req, res) =>{
+    res.status(200).json({message: 'Welcome, Editor'});
+})
+
+app.get('api/viewer', authenticateRole(['admin','editor','viewer']), (req, res)=>{
+    res.status(200).json({message:'Welcome, Viewer!'});
+})
+
+/*
+here we take like authenticate(['admin','editor','viewer']) this means that which role can access this route
+like for viewer mode everyone can access either he is viewer, editor or admin
+while admin route can only be access by admin only 
+thats why we use a function in our roles array that will be our array parameter provided to the authenicateRole([]) middleware
+   -> roles.includes(user.roles) - T/F 
+*/
+
+// ---------------------------------- part 3 end -----------------
 
 // middleware to validate JWT
 const authenticateToken = (req, res, next) =>{
